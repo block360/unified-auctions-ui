@@ -12,6 +12,8 @@ import {
     MKR_NUMBER_OF_DIGITS,
 } from './constants/UNITS';
 
+import { getCollateralConfigByType } from './constants/COLLATERALS';
+
 export const fetchBalanceETH = async function (network: string, walletAddress: string): Promise<BigNumber> {
     const provider = await getProvider(network);
     const rawAmount = await provider.getBalance(walletAddress);
@@ -94,7 +96,8 @@ export const withdrawCollateralFromVat = async function (
     notifier?: Notifier
 ): Promise<void> {
     const withdrawalAmount = amount || (await fetchCollateralVatBalance(network, walletAddress, collateralType));
-    const withdrawalAmountWad = withdrawalAmount.shiftedBy(WAD_NUMBER_OF_DIGITS).toFixed(0, BigNumber.ROUND_DOWN);
+    const shiftBy = getCollateralConfigByType(collateralType).decimals;
+    const withdrawalAmountWad = withdrawalAmount.shiftedBy(shiftBy).toFixed(0, BigNumber.ROUND_DOWN);
     const contractName = getJoinNameByCollateralType(collateralType);
     await executeTransaction(network, contractName, 'exit', [walletAddress, withdrawalAmountWad], {
         notifier,

@@ -9,7 +9,7 @@ import UniswapV3Callee from './UniswapV3Callee';
 import GSURatesCallee from './GSURatesCallee';
 import { getCollateralConfigByType, getCollateralConfigBySymbol } from '../constants/COLLATERALS';
 
-const MARKET_PRICE_CACHE_MS = 10 * 1000;
+const MARKET_PRICE_CACHE_MS = 60 * 1000;
 
 const allCalleeFunctions: Record<CalleeNames, CalleeFunctions> = {
     UniswapV2CalleeDai,

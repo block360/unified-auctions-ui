@@ -31,16 +31,10 @@ COPY --from=dependency-base /core /core
 COPY --from=dependency-base /frontend /frontend
 
 WORKDIR /frontend
-RUN NODE_ENV=production npm install \
-  --prefer-offline \
-  --pure-lockfile \
-  --non-interactive \
-  --production=true
-
+CMD ["npm", "run", "dev"]
 
 FROM dependency-base AS production-base
 
-EXPOSE 9080
 # bake env variables
 ARG RPC_URL
 ENV RPC_URL=${RPC_URL}
@@ -56,6 +50,10 @@ ARG FRONTEND_ORIGIN
 ENV FRONTEND_ORIGIN=${FRONTEND_ORIGIN}
 
 WORKDIR /frontend
-RUN npm run generate 
-CMD [ "npm", "run", "start"]
+
+EXPOSE 9080
+
+RUN npm run generate
+
+ENTRYPOINT npm run start
 

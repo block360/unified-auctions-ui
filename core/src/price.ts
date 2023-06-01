@@ -1,6 +1,7 @@
 import type { Auction } from './types';
 import BigNumber from './bignumber';
 import { addSeconds } from 'date-fns';
+import { RAD_NUMBER_OF_DIGITS } from './constants/UNITS';
 
 const checkAuctionStartDate = function (startDate: Date, currentDate: Date): void {
     const auctionStartTimestamp = startDate.getTime();
@@ -42,12 +43,16 @@ export const calculateAuctionDropTime = function (auction: Auction, currentDate:
     return auction.secondsBetweenPriceDrops - (elapsedTime % auction.secondsBetweenPriceDrops);
 };
 
-export const calculateTransactionGrossProfit = function (auction: Auction): BigNumber {
-    if (!auction.marketUnitPrice) {
+export const calculateTransactionGrossProfit = function (
+    marketUnitPrice: BigNumber,
+    collateralToCoverDebt: BigNumber,
+    approximateUnitPrice: BigNumber
+): BigNumber {
+    if (!marketUnitPrice) {
         return new BigNumber(0);
     }
-    const totalDebtMarketPrice = auction.collateralToCoverDebt.multipliedBy(auction.marketUnitPrice);
-    const totalDebtPrice = auction.collateralToCoverDebt.multipliedBy(auction.approximateUnitPrice);
+    const totalDebtMarketPrice = collateralToCoverDebt.multipliedBy(marketUnitPrice);
+    const totalDebtPrice = collateralToCoverDebt.multipliedBy(approximateUnitPrice);
     return totalDebtMarketPrice.minus(totalDebtPrice);
 };
 
@@ -61,16 +66,15 @@ export const calculateTransactionCollateralOutcome = function (
     const collateralToBuyForTheBid = bidAmountDai.dividedBy(unitPrice);
     const potentialOutcomeCollateralAmount = BigNumber.minimum(collateralToBuyForTheBid, auction.collateralAmount); // slice
     const potentialOutcomeTotalPrice = potentialOutcomeCollateralAmount.multipliedBy(unitPrice); // owe
-    const approximateDebt = new BigNumber(auction.debtDAI.toPrecision(16, BigNumber.ROUND_DOWN));
-    const approximatePotentialOutcomeTotalPrice = new BigNumber(
-        potentialOutcomeTotalPrice.toPrecision(16, BigNumber.ROUND_DOWN)
+    const potentialOutcomeTotalPriceRounded = new BigNumber( // rounded up to match debtDAI precision
+        potentialOutcomeTotalPrice.toPrecision(RAD_NUMBER_OF_DIGITS, BigNumber.ROUND_UP)
     );
     if (
         // if owe > tab
-        // soft compensation because of precision problems.
-        approximateDebt.isLessThan(approximatePotentialOutcomeTotalPrice)
+        potentialOutcomeTotalPriceRounded.isGreaterThan(auction.debtDAI)
     ) {
-        return auction.debtDAI.dividedBy(unitPrice); // return tab / price
+        // return tab / price + 0.1% compensation for the js/sol math differences
+        return auction.debtDAI.dividedBy(unitPrice).multipliedBy(1.001);
     } else if (
         // if owe < tab && slice < lot
         potentialOutcomeTotalPrice.isLessThan(auction.debtDAI) &&
@@ -94,11 +98,15 @@ export const calculateTransactionCollateralOutcome = function (
     return potentialOutcomeCollateralAmount;
 };
 
-export const calculateTransactionGrossProfitDate = function (auction: Auction, currentDate: Date): Date | undefined {
+export const calculateTransactionGrossProfitDate = function (
+    auction: Auction,
+    marketUnitPrice: BigNumber | undefined,
+    currentDate: Date
+): Date | undefined {
     if (
         auction.secondsBetweenPriceDrops === undefined ||
         auction.secondsTillNextPriceDrop === undefined ||
-        auction.marketUnitPrice === undefined ||
+        marketUnitPrice === undefined ||
         auction.priceDropRatio === undefined ||
         !auction.isActive ||
         auction.isFinished
@@ -106,14 +114,14 @@ export const calculateTransactionGrossProfitDate = function (auction: Auction, c
         return undefined;
     }
 
-    const isAlreadyProfitable = auction.approximateUnitPrice.isLessThan(auction.marketUnitPrice);
+    const isAlreadyProfitable = auction.approximateUnitPrice.isLessThan(marketUnitPrice);
 
     if (isAlreadyProfitable) {
         return undefined;
     }
 
     const stepNumber = Math.ceil(
-        Math.log(auction.marketUnitPrice.dividedBy(auction.approximateUnitPrice).toNumber()) /
+        Math.log(marketUnitPrice.dividedBy(auction.approximateUnitPrice).toNumber()) /
             Math.log(auction.priceDropRatio.toNumber())
     );
 

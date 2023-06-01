@@ -1,21 +1,29 @@
-import type { CalleeFunctions, CollateralConfig } from '../types';
+import type { CalleeFunctions, CollateralConfig, GetCalleeDataParams, Pool } from '../types';
 import { ethers } from 'ethers';
 import BigNumber from '../bignumber';
 import { getContractAddressByName, getJoinNameByCollateralType } from '../contracts';
 import { convertCrvethToEth, CURVE_COIN_INDEX, CURVE_POOL_ADDRESS } from './helpers/curve';
-import { encodeRoute, convertCollateralToDai } from './helpers/uniswapV3';
+import { convertCollateralToDai, encodePools } from './helpers/uniswapV3';
+import { routeToPool } from './helpers/pools';
 
 export const CHARTER_MANAGER_ADDRESS = '0x8377CD01a5834a6EaD3b7efb482f678f2092b77e';
 
 const getCalleeData = async function (
     network: string,
     collateral: CollateralConfig,
-    profitAddress: string
+    marketId: string,
+    profitAddress: string,
+    params?: GetCalleeDataParams
 ): Promise<string> {
-    if (collateral.exchange.callee !== 'CurveLpTokenUniv3Callee') {
+    const marketData = collateral.exchanges[marketId];
+    if (marketData?.callee !== 'CurveLpTokenUniv3Callee') {
         throw new Error(`Can not encode route for the "${collateral.ilk}"`);
     }
-    const route = await encodeRoute(network, collateral.exchange.route);
+    const preloadedPools = !!params && 'pools' in params ? params.pools : undefined;
+    if (!preloadedPools) {
+        throw new Error(`Can not encode route for the "${collateral.ilk}" without preloaded pools`);
+    }
+    const route = await encodePools(network, preloadedPools);
     const curveData = [CURVE_POOL_ADDRESS, CURVE_COIN_INDEX];
     const joinAdapterAddress = await getContractAddressByName(network, getJoinNameByCollateralType(collateral.ilk));
     const minProfit = 1;
@@ -32,9 +40,14 @@ const getCalleeData = async function (
 
 const getMarketPrice = async function (
     network: string,
-    _collateral: CollateralConfig,
+    collateral: CollateralConfig,
+    marketId: string,
     collateralAmount: BigNumber
-): Promise<BigNumber> {
+): Promise<{ price: BigNumber; pools: Pool[] }> {
+    const marketData = collateral.exchanges[marketId];
+    if (marketData.callee !== 'CurveLpTokenUniv3Callee') {
+        throw new Error(`Can not get market price for the "${collateral.ilk}"`);
+    }
     // convert stETH into ETH
     const wethAmount = await convertCrvethToEth(network, collateralAmount);
 
@@ -42,12 +55,15 @@ const getMarketPrice = async function (
     const daiAmount = await convertCollateralToDai(network, 'ETH', wethAmount);
 
     // return price per unit
-    return daiAmount.dividedBy(collateralAmount);
+    return {
+        price: daiAmount.dividedBy(collateralAmount),
+        pools: await routeToPool(network, marketData.route, collateral.symbol),
+    };
 };
 
-const UniswapV2CalleeDai: CalleeFunctions = {
+const CurveLpTokenUniv3Callee: CalleeFunctions = {
     getCalleeData,
     getMarketPrice,
 };
 
-export default UniswapV2CalleeDai;
+export default CurveLpTokenUniv3Callee;

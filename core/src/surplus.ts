@@ -12,11 +12,19 @@ import BigNumber from './bignumber';
 import getContract from './contracts';
 import { Contract } from 'ethers';
 import getNetworkDate from './date';
-import { MKR_NUMBER_OF_DIGITS, RAD, RAD_NUMBER_OF_DIGITS, WAD, WAD_NUMBER_OF_DIGITS } from './constants/UNITS';
+import {
+    ETH_NUMBER_OF_DIGITS,
+    MKR_NUMBER_OF_DIGITS,
+    RAD,
+    RAD_NUMBER_OF_DIGITS,
+    WAD,
+    WAD_NUMBER_OF_DIGITS,
+} from './constants/UNITS';
 import executeTransaction from './execute';
 import { getGasPriceForUI } from './gas';
-import { getMarketPrice } from './calleeFunctions';
-import { convertMkrToDai } from './calleeFunctions/helpers/uniswapV3';
+import { convertMkrToDai, convertSymbolToDai } from './calleeFunctions/helpers/uniswapV3';
+// import { convertMkrToDai } from './calleeFunctions/helpers/uniswapV3';
+import { fetchGSURates } from './calleeFunctions/helpers/gsu';
 
 const getSurplusAuctionLastIndex = async (contract: Contract): Promise<number> => {
     const auctionsQuantityBinary = await contract.kicks();
@@ -168,7 +176,8 @@ export const collectSurplusAuction = async function (network: string, auctionInd
 
 const getSurplusTransactionFees = async function (network: string): Promise<CompensationAuctionTransactionFees> {
     const gasPrice = await getGasPriceForUI(network);
-    const exchangeRate = await getMarketPrice(network, 'ETH');
+    const exchangeRate = await convertSymbolToDai(network, 'ETH', new BigNumber(1), ETH_NUMBER_OF_DIGITS);
+
     const restartTransactionFeeEth = gasPrice.multipliedBy(80563);
     const allowanceTransactionFeeEth = gasPrice.multipliedBy(48373);
     const bidTransactionFeeEth = gasPrice.multipliedBy(85181);
@@ -196,7 +205,8 @@ const getMarketPriceMkr = async function (network: string, bidAmountMKR: BigNumb
     try {
         return new BigNumber(1).div((await convertMkrToDai(network, bidAmountMKR)).div(bidAmountMKR));
     } catch (error) {
-        return new BigNumber(NaN);
+        const rate = await fetchGSURates('GSUp');
+        return rate;
     }
 };
 
@@ -207,8 +217,19 @@ export const enrichSurplusAuction = async (
     let nextMinimumBid = await getNextMinimumBid(network, auction);
     const unitPrice = auction.bidAmountMKR.div(auction.receiveAmountDAI);
     let marketUnitPrice = await getMarketPriceMkr(network, auction.bidAmountMKR);
+    console.log('marketUnitPrice', marketUnitPrice.toString());
+    // let marketUnitPrice = new BigNumber(1);
     const marketUnitPriceToUnitPriceRatio = unitPrice.minus(marketUnitPrice).dividedBy(marketUnitPrice);
+    console.log('marketUnitPriceToUnitPriceRatio', marketUnitPriceToUnitPriceRatio.toString());
     const fees = await getSurplusTransactionFees(network);
+    console.log('fees', fees);
+    if (nextMinimumBid.isZero()) {
+        nextMinimumBid = new BigNumber(1000).plus(fees.combinedBidFeesDai).div(marketUnitPrice);
+    }
+    if (marketUnitPrice.isNaN()) {
+        marketUnitPrice = await convertMkrToDai(network, new BigNumber(1));
+    }
+    console.log('here tooo');
     return {
         ...auction,
         ...fees,

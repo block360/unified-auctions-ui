@@ -1,15 +1,18 @@
-import type { CalleeFunctions, CollateralConfig } from '../types';
+import type { CalleeFunctions, CollateralConfig, Pool } from '../types';
 import { ethers } from 'ethers';
 import BigNumber from '../bignumber';
 import { getContractAddressByName, getJoinNameByCollateralType } from '../contracts';
 import { getUniswapRouteAddressesBySymbol, getRegularTokenExchangeRateBySymbol } from './helpers/uniswapV2';
+import { routeToPool } from './helpers/pools';
 
 const getCalleeData = async function (
     network: string,
     collateral: CollateralConfig,
+    marketId: string,
     profitAddress: string
 ): Promise<string> {
-    if (collateral.exchange.callee !== 'UniswapV2CalleeDai') {
+    const marketData = collateral.exchanges[marketId];
+    if (marketData?.callee !== 'UniswapV2CalleeDai') {
         throw new Error(`getCalleeData called with invalid collateral type "${collateral.ilk}"`);
     }
     const joinAdapterAddress = await getContractAddressByName(network, getJoinNameByCollateralType(collateral.ilk));
@@ -19,16 +22,24 @@ const getCalleeData = async function (
         profitAddress,
         joinAdapterAddress,
         minProfit,
-        await getUniswapRouteAddressesBySymbol(network, collateral.symbol),
+        await getUniswapRouteAddressesBySymbol(network, collateral.symbol, marketId),
     ]);
 };
 
 const getMarketPrice = async function (
     network: string,
     collateral: CollateralConfig,
+    marketId: string,
     amount: BigNumber
-): Promise<BigNumber> {
-    return await getRegularTokenExchangeRateBySymbol(network, collateral.symbol, amount);
+): Promise<{ price: BigNumber; pools: Pool[] }> {
+    const marketData = collateral.exchanges[marketId];
+    if (marketData.callee !== 'UniswapV2CalleeDai') {
+        throw new Error(`Can not get market price for the "${collateral.ilk}"`);
+    }
+    return {
+        price: await getRegularTokenExchangeRateBySymbol(network, collateral.symbol, marketId, amount),
+        pools: await routeToPool(network, marketData.route, collateral.symbol),
+    };
 };
 
 const UniswapV2CalleeDai: CalleeFunctions = {

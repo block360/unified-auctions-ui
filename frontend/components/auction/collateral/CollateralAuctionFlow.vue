@@ -1,5 +1,5 @@
 <template>
-    <div :class="isStagingEnvironment ? 'SplitLayoutStagingContainer' : 'SplitLayoutContainer'">
+    <div :class="doShowBanner ? 'SplitLayoutBannerPrependedContainer' : 'SplitLayoutContainer'">
         <SplitLayout :step.sync="step">
             <template #step0>
                 <div v-if="isExplanationsShown" class="h-1/2">
@@ -52,11 +52,13 @@
                     :is-executing="isExecuting"
                     :wallet-address="walletAddress"
                     :is-explanations-shown="isExplanationsShown"
+                    :is-autorouting-enabled="isAutoroutingEnabled"
                     @connect="$emit('connect')"
                     @disconnect="$emit('disconnect')"
                     @authorizeWallet="$emit('authorizeWallet')"
                     @authorizeCollateral="$emit('authorizeCollateral', $event)"
                     @execute="$emit('execute', $event)"
+                    @toggleAutoRouterLoad="$emit('toggleAutoRouterLoad', $event)"
                 />
                 <CollateralAuctionBidTransaction
                     v-if="selectedAuction && secondStep === 'purchase'"
@@ -192,6 +194,10 @@ export default Vue.extend({
             type: Date,
             default: null,
         },
+        autoroutingStates: {
+            type: Object as Vue.PropType<Record<string, boolean>>,
+            default: () => ({}),
+        },
     },
     data: () => ({
         step: 0,
@@ -210,14 +216,17 @@ export default Vue.extend({
             }
             return null;
         },
-        isStagingEnvironment(): boolean {
-            return !!process.env.STAGING_BANNER_URL;
+        doShowBanner(): boolean {
+            return !!process.env.STAGING_BANNER_URL || !!process.env.PRODUCTION_BANNER_URL;
         },
         collateralVatBalance(): BigNumber | undefined {
             if (!this.collateralVatBalanceStore || !this.selectedAuction) {
                 return;
             }
             return this.collateralVatBalanceStore[this.selectedAuction.collateralType];
+        },
+        isAutoroutingEnabled(): boolean {
+            return this.autoroutingStates[this.selectedAuction.id];
         },
     },
     watch: {
@@ -264,7 +273,7 @@ export default Vue.extend({
     height: calc(100vh - 4rem);
 }
 
-.SplitLayoutStagingContainer {
+.SplitLayoutBannerPrependedContainer {
     margin-top: 2.3rem;
     height: calc(100vh - 6.3rem);
 }

@@ -7,7 +7,7 @@ const DEFAULT_NOTIFICATION_DURATION = 3;
 const NUMBER_OF_BLOCKS_TO_CONFIRM = 5;
 
 const defaultNotifier = function (_: string, messageContent: MessageContent) {
-    console.info(`transaction ${messageContent.key}: ${messageContent.content}`);
+    console.info(messageContent.content);
 };
 
 const trackTransaction = async function (
@@ -35,7 +35,7 @@ const trackTransaction = async function (
         });
     } catch (error: any) {
         notifier('error', {
-            content: `Transaction error: "${parseMetamaskError(error?.message)}"`,
+            content: `Transaction error: "${parseMetamaskError(error?.data?.message || error?.message)}"`,
             key: messageId,
             duration: DEFAULT_NOTIFICATION_DURATION,
         });
@@ -72,7 +72,9 @@ const trackTransaction = async function (
         return confirmedTransactionReceipt.transactionHash;
     } catch (error: any) {
         notifier('error', {
-            content: `Transaction was rejected with error: "${parseMetamaskError(error?.message)}"`,
+            content: `Transaction was rejected with error: "${parseMetamaskError(
+                error?.data?.message || error?.message
+            )}"`,
             key: messageId,
             duration: DEFAULT_NOTIFICATION_DURATION,
         });

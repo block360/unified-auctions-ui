@@ -431,27 +431,27 @@ const COLLATERALS: Record<string, CollateralConfig> = {
     //     },
     //     oracle: CONFIG_WITHOUT_NEXT_PRICE,
     // },
-    // 'USDT-A': {
-    //     title: 'Tether USD',
-    //     ilk: 'USDT-A',
-    //     symbol: 'USDT',
-    //     decimals: 6,
-    //     exchanges: {
-    //         'Uniswap V3 Autorouter': {
-    //             callee: 'UniswapV3Callee',
-    //             automaticRouter: true,
-    //         },
-    //         'Uniswap V3': {
-    //             callee: 'UniswapV3Callee',
-    //             route: ['ETH'],
-    //         },
-    //         'Uniswap V2': {
-    //             callee: 'UniswapV2CalleeDai',
-    //             route: ['ETH'],
-    //         },
-    //     },
-    //     oracle: CONFIG_WITH_NEXT_PRICE,
-    // },
+    'USDT-A': {
+        title: 'Tether USD',
+        ilk: 'USDT-A',
+        symbol: 'USDT',
+        decimals: 6,
+        exchanges: {
+            'Uniswap V3 Autorouter': {
+                callee: 'UniswapV3Callee',
+                automaticRouter: true,
+            },
+            'Uniswap V3': {
+                callee: 'UniswapV3Callee',
+                route: ['ETH'],
+            },
+            'Uniswap V2': {
+                callee: 'UniswapV2CalleeDai',
+                route: ['ETH'],
+            },
+        },
+        oracle: CONFIG_WITH_NEXT_PRICE,
+    },
     'WBTC-A': {
         title: 'Wrapped Bitcoin',
         ilk: 'WBTC-A',
